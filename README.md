@@ -30,8 +30,8 @@ A web application that allows HR professionals to upload up to 25 resumes and an
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
-   cd HRHelp
+   git clone https://github.com/saswatkumar24/hrhelp.git
+   cd hrhelp
    ```
 
 2. **Create a virtual environment**
@@ -66,7 +66,7 @@ A web application that allows HR professionals to upload up to 25 resumes and an
    ```
 
 6. **Open your browser**
-   Navigate to `http://localhost:5000`
+   Navigate to `http://localhost:8000`
 
 ## 📖 Usage Guide
 
@@ -181,14 +181,14 @@ HRHelp/
 
 ### Upload Files
 ```bash
-curl -X POST http://localhost:5000/upload \
+curl -X POST http://localhost:8000/upload
   -F "files=@resume1.pdf" \
   -F "files=@resume2.docx"
 ```
 
 ### Ask Question
 ```bash
-curl -X POST http://localhost:5000/chat \
+curl -X POST http://localhost:8000/chat
   -H "Content-Type: application/json" \
   -d '{"message": "Who has the most experience?"}'
 ```
@@ -230,6 +230,22 @@ Enable debug mode by setting `FLASK_DEBUG=True` in your `.env` file for detailed
 Check the console output for detailed logs about file processing and API calls.
 
 ## 🚀 Production Deployment
+
+### Deploy to Render.com (Recommended)
+
+This project is configured for easy deployment on Render.com:
+
+1. **Fork this repository** to your GitHub account
+2. **Sign up** at [render.com](https://render.com)
+3. **Create a new Web Service**
+   - Connect your GitHub account
+   - Select your forked `hrhelp` repository
+   - Render will automatically detect the `render.yaml` configuration
+4. **Set environment variables**:
+   - `GOOGLE_API_KEY`: Your Google Gemini API key
+   - `FLASK_SECRET_KEY`: A random secret string (optional - auto-generated)
+5. **Deploy**: Click deploy and wait for the build to complete
+6. **Access**: Your app will be available at `https://your-app-name.onrender.com`
 
 ### Using Gunicorn
 
