@@ -1,0 +1,466 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Welcome Section -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-brain text-primary" style="font-size: 3rem;"></i>
+                <h1 class="display-5 fw-bold mt-3 mb-3">Welcome to HR Resume Analyzer</h1>
+                <p class="lead mb-4">
+                    An intelligent assistant powered by Google Gemini AI to help you analyze and compare candidate resumes efficiently.
+                </p>
+                
+                <!-- Capabilities -->
+                <div class="row g-4 mt-4">
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <i class="fas fa-upload text-success mb-3" style="font-size: 2rem;"></i>
+                            <h5>Upload Resumes</h5>
+                            <p class="text-muted">Upload up to 25 resumes in PDF, DOCX, or ZIP format</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <i class="fas fa-search text-info mb-3" style="font-size: 2rem;"></i>
+                            <h5>Smart Analysis</h5>
+                            <p class="text-muted">Ask questions about skills, experience, and qualifications</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <i class="fas fa-table text-warning mb-3" style="font-size: 2rem;"></i>
+                            <h5>Compare Candidates</h5>
+                            <p class="text-muted">Get detailed comparisons and rankings in table format</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Interface -->
+<div class="row">
+    <!-- Upload Panel -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-cloud-upload-alt me-2"></i>
+                    Upload Resumes
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="fileInput" class="form-label">Select Resume Files</label>
+                        <input type="file" class="form-control" id="fileInput" name="files" 
+                               accept=".pdf,.docx,.zip" multiple>
+                        <div class="form-text">
+                            Supported formats: PDF, DOCX, ZIP (max 25 files, 16MB each)
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary" id="uploadBtn">
+                        <i class="fas fa-upload me-2"></i>
+                        Upload & Process
+                    </button>
+                    
+                    <div class="mt-3" id="uploadProgress" style="display: none;">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 100%"></div>
+                        </div>
+                        <small class="text-muted">Processing resumes...</small>
+                    </div>
+                </form>
+                
+                <!-- Upload Results -->
+                <div id="uploadResults" class="mt-4" style="display: none;">
+                    <h6>Processing Results:</h6>
+                    <div id="uploadResultsContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Panel -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-comments me-2"></i>
+                    Ask Questions
+                </h5>
+                <span id="resumeCounter" class="badge bg-light text-dark">0 resumes loaded</span>
+            </div>
+            <div class="card-body d-flex flex-column">
+                <!-- Sample Questions -->
+                <div id="sampleQuestions" class="mb-4">
+                    <h6 class="text-muted mb-3">Try asking questions like:</h6>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm text-start sample-question" 
+                                data-question="Who has the most experience?">
+                            <i class="fas fa-question-circle me-2"></i>
+                            Who has the most experience?
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm text-start sample-question" 
+                                data-question="Which candidates know Java?">
+                            <i class="fas fa-question-circle me-2"></i>
+                            Which candidates know Java?
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm text-start sample-question" 
+                                data-question="Compare the top 3 candidates">
+                            <i class="fas fa-question-circle me-2"></i>
+                            Compare the top 3 candidates
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm text-start sample-question" 
+                                data-question="Who has experience in machine learning?">
+                            <i class="fas fa-question-circle me-2"></i>
+                            Who has experience in machine learning?
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Chat History -->
+                <div class="flex-grow-1 mb-3">
+                    <div id="chatHistory" class="chat-history" style="height: 300px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 1rem;">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-robot" style="font-size: 2rem;"></i>
+                            <p class="mt-2">Upload some resumes to start asking questions!</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Chat Input -->
+                <form id="chatForm">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="messageInput" 
+                               placeholder="Ask a question about the resumes..." disabled>
+                        <button type="submit" class="btn btn-success" id="sendBtn" disabled>
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Section -->
+<div class="row" id="resultsSection" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    Analysis Results
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="resultsContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Initialize the application
+document.addEventListener('DOMContentLoaded', function() {
+    // Check initial status
+    checkStatus();
+    
+    // Set up event listeners
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    // Upload form
+    document.getElementById('uploadForm').addEventListener('submit', handleUpload);
+    
+    // Chat form
+    document.getElementById('chatForm').addEventListener('submit', handleChat);
+    
+    // Sample questions
+    document.querySelectorAll('.sample-question').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const question = this.getAttribute('data-question');
+            document.getElementById('messageInput').value = question;
+            handleChat(new Event('submit'));
+        });
+    });
+}
+
+async function handleUpload(e) {
+    e.preventDefault();
+    
+    const form = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('fileInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadProgress = document.getElementById('uploadProgress');
+    
+    if (!fileInput.files.length) {
+        showAlert('Please select files to upload.', 'warning');
+        return;
+    }
+    
+    // Show progress and disable form
+    uploadProgress.style.display = 'block';
+    uploadBtn.disabled = true;
+    
+    try {
+        const formData = new FormData();
+        for (let file of fileInput.files) {
+            formData.append('files', file);
+        }
+        
+        const response = await fetch('/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showUploadResults(result);
+            updateResumeCounter(result.resumes_processed);
+            enableChat();
+            showAlert(`Successfully processed ${result.resumes_processed} resumes!`, 'success');
+        } else {
+            showAlert(result.error, 'danger');
+            if (result.errors) {
+                result.errors.forEach(error => showAlert(error, 'warning'));
+            }
+        }
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        showAlert('Upload failed. Please try again.', 'danger');
+    } finally {
+        uploadProgress.style.display = 'none';
+        uploadBtn.disabled = false;
+    }
+}
+
+async function handleChat(e) {
+    e.preventDefault();
+    
+    const messageInput = document.getElementById('messageInput');
+    const message = messageInput.value.trim();
+    
+    if (!message) return;
+    
+    // Add user message to chat
+    addChatMessage(message, 'user');
+    messageInput.value = '';
+    
+    // Show typing indicator
+    const typingId = addChatMessage('Analyzing resumes...', 'bot', true);
+    
+    try {
+        const response = await fetch('/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message: message })
+        });
+        
+        const result = await response.json();
+        
+        // Remove typing indicator
+        removeChatMessage(typingId);
+        
+        if (result.success) {
+            addChatMessage(result.response, 'bot');
+            
+            // Show table if available
+            if (result.table && result.table.length > 0) {
+                addTableToChat(result.table);
+            }
+        } else {
+            addChatMessage(`Error: ${result.error}`, 'bot', false, 'error');
+        }
+        
+    } catch (error) {
+        console.error('Chat error:', error);
+        removeChatMessage(typingId);
+        addChatMessage('Sorry, I encountered an error. Please try again.', 'bot', false, 'error');
+    }
+}
+
+function showUploadResults(result) {
+    const resultsDiv = document.getElementById('uploadResults');
+    const contentDiv = document.getElementById('uploadResultsContent');
+    
+    let html = `
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="bg-success bg-opacity-10 p-3 rounded">
+                    <strong>Files Processed:</strong> ${result.resumes_processed}/${result.files_uploaded}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="bg-info bg-opacity-10 p-3 rounded">
+                    <strong>Valid Resumes:</strong> ${result.validation_summary.valid_resumes}/${result.validation_summary.total_resumes}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    if (result.validation_summary.recommendations.length > 0) {
+        html += '<div class="mt-3"><h6>Recommendations:</h6><ul>';
+        result.validation_summary.recommendations.forEach(rec => {
+            html += `<li class="text-muted">${rec}</li>`;
+        });
+        html += '</ul></div>';
+    }
+    
+    contentDiv.innerHTML = html;
+    resultsDiv.style.display = 'block';
+}
+
+function addChatMessage(message, sender, isTyping = false, type = 'normal') {
+    const chatHistory = document.getElementById('chatHistory');
+    const messageId = 'msg_' + Date.now();
+    
+    // Clear welcome message if this is the first real message
+    if (chatHistory.querySelector('.text-center')) {
+        chatHistory.innerHTML = '';
+    }
+    
+    const messageClass = sender === 'user' ? 'text-end' : 'text-start';
+    const bgClass = sender === 'user' ? 'bg-primary text-white' : 
+                   type === 'error' ? 'bg-danger text-white' : 'bg-light';
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.id = messageId;
+    messageDiv.className = `mb-3 ${messageClass}`;
+    
+    messageDiv.innerHTML = `
+        <div class="d-inline-block p-3 rounded ${bgClass}" style="max-width: 80%;">
+            <div class="message-content">${isTyping ? '<i class="fas fa-spinner fa-spin"></i> ' + message : message}</div>
+            <small class="d-block mt-1 opacity-75">${new Date().toLocaleTimeString()}</small>
+        </div>
+    `;
+    
+    chatHistory.appendChild(messageDiv);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    
+    return messageId;
+}
+
+function removeChatMessage(messageId) {
+    const message = document.getElementById(messageId);
+    if (message) {
+        message.remove();
+    }
+}
+
+function addTableToChat(tableData) {
+    const chatHistory = document.getElementById('chatHistory');
+    
+    if (!tableData || tableData.length === 0) return;
+    
+    const tableDiv = document.createElement('div');
+    tableDiv.className = 'mb-3 text-start';
+    
+    const headers = Object.keys(tableData[0]);
+    
+    let tableHTML = `
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered">
+                <thead class="table-dark">
+                    <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+                </thead>
+                <tbody>
+    `;
+    
+    tableData.forEach(row => {
+        tableHTML += '<tr>';
+        headers.forEach(header => {
+            tableHTML += `<td>${row[header] || ''}</td>`;
+        });
+        tableHTML += '</tr>';
+    });
+    
+    tableHTML += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    tableDiv.innerHTML = tableHTML;
+    chatHistory.appendChild(tableDiv);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+}
+
+function enableChat() {
+    document.getElementById('messageInput').disabled = false;
+    document.getElementById('sendBtn').disabled = false;
+    document.getElementById('sampleQuestions').style.display = 'none';
+}
+
+function updateResumeCounter(count) {
+    document.getElementById('resumeCounter').textContent = `${count} resumes loaded`;
+}
+
+async function checkStatus() {
+    try {
+        const response = await fetch('/status');
+        const result = await response.json();
+        
+        if (result.session_active) {
+            updateResumeCounter(result.resumes_loaded);
+            enableChat();
+            showAlert(`Session active with ${result.resumes_loaded} resumes loaded.`, 'info');
+        }
+    } catch (error) {
+        console.error('Status check failed:', error);
+    }
+}
+
+async function clearSession() {
+    if (!confirm('Are you sure you want to clear the current session? This will remove all uploaded resumes.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/clear');
+        const result = await response.json();
+        
+        if (result.success) {
+            location.reload();
+        } else {
+            showAlert('Failed to clear session.', 'danger');
+        }
+    } catch (error) {
+        console.error('Clear session failed:', error);
+        showAlert('Failed to clear session.', 'danger');
+    }
+}
+
+function showAlert(message, type) {
+    const alertContainer = document.getElementById('alertContainer');
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    alertContainer.appendChild(alertDiv);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}
