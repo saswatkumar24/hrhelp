@@ -26,11 +26,13 @@ class GeminiResumeAnalyzer:
         
         self.resumes_data = []
         self.analysis_cache = {}
+        self._last_mentioned_resume = None
         
     def load_resumes(self, resumes: List[Dict]) -> None:
         """Load processed resumes into the analyzer."""
         self.resumes_data = resumes
         self.analysis_cache = {}  # Clear cache when new resumes are loaded
+        self._last_mentioned_resume = None  # Clear context when new resumes are loaded
         logger.info(f"Loaded {len(resumes)} resumes for analysis")
         
     def analyze_question(self, question: str) -> Dict[str, Any]:
@@ -130,6 +132,9 @@ Avoid unnecessary scores, ratings, or complex formatting unless specifically req
         chain = LLMChain(llm=self.llm, prompt=prompt)
         response = chain.run(question=question, context=context)
         
+        # Track the mentioned candidate for context
+        self._update_context_from_response(response, question)
+        
         # Parse response to extract table data
         table_data = self._extract_table_from_response(response)
         
@@ -165,6 +170,9 @@ Keep the response conversational and avoid unnecessary formatting, scores, or ra
         chain = LLMChain(llm=self.llm, prompt=prompt)
         response = chain.run(question=question, context=context)
         
+        # Track the mentioned candidate for context
+        self._update_context_from_response(response, question)
+        
         table_data = self._extract_table_from_response(response)
         
         return {
@@ -175,6 +183,33 @@ Keep the response conversational and avoid unnecessary formatting, scores, or ra
     
     def _handle_general_question(self, question: str, context: str) -> Dict[str, Any]:
         """Handle general questions about the resumes."""
+        
+        # Check if user is asking for file downloads
+        download_keywords = ['download', 'file', 'original', 'pdf', 'docx', 'resume file']
+        if any(keyword in question.lower() for keyword in download_keywords):
+            # Try to identify specific person/candidate mentioned in the question
+            specific_resume = self._find_specific_resume_from_question(question)
+            
+            if specific_resume:
+                # Provide download link for specific person
+                download_response = f"Here's the download link for {specific_resume['candidate_name']}'s resume:\n\n• {specific_resume['filename']}\n\nThis is the resume file for the candidate you mentioned."
+                return {
+                    "response": download_response,
+                    "table": None,
+                    "question_type": "download",
+                    "specific_file": specific_resume['filename']
+                }
+            else:
+                # Provide all files if no specific person mentioned
+                file_list = "\n".join([f"• {resume['filename']}" for resume in self.resumes_data])
+                download_response = f"I can help you access the original resume files! Here are all the uploaded files:\n\n{file_list}\n\nWhich specific resume would you like to download?"
+                
+                return {
+                    "response": download_response,
+                    "table": None,
+                    "question_type": "download"
+                }
+        
         prompt = PromptTemplate(
             input_variables=["question", "context"],
             template="""
@@ -257,3 +292,129 @@ Focus on giving practical, actionable information without unnecessary complexity
         summary['avg_words'] = summary['total_words'] // summary['count'] if summary['count'] > 0 else 0
         
         return summary
+    
+    def _find_specific_resume_from_question(self, question: str) -> Dict:
+        """Try to identify which specific resume the user is asking about based on context."""
+        question_lower = question.lower()
+        
+        # Extract potential names from filenames and match against question
+        for resume in self.resumes_data:
+            filename = resume['filename']
+            
+            # Extract candidate name from filename (common patterns)
+            candidate_names = self._extract_candidate_names(filename)
+            
+            # Check if any extracted name appears in the question
+            for name in candidate_names:
+                if name.lower() in question_lower:
+                    return {
+                        'filename': filename,
+                        'candidate_name': name,
+                        'resume_data': resume
+                    }
+        
+        # If no name match, try to use pronouns with context from recent analysis
+        if any(pronoun in question_lower for pronoun in ['his', 'her', 'their', 'this person', 'that candidate']):
+            # This is a contextual reference - we need to track the last mentioned candidate
+            # For now, we'll use a simple heuristic based on the most recently discussed resume
+            if hasattr(self, '_last_mentioned_resume') and self._last_mentioned_resume:
+                return self._last_mentioned_resume
+        
+        return None
+    
+    def _extract_candidate_names(self, filename: str) -> List[str]:
+        """Extract possible candidate names from filename."""
+        # Remove file extension
+        name_part = filename.rsplit('.', 1)[0]
+        logger.info(f"Extracting names from filename: {filename} -> {name_part}")
+        
+        candidates = []
+        
+        # Pattern 1: FirstName_LastName_extras (like "saswat_11y")
+        if '_' in name_part:
+            parts = name_part.split('_')
+            for part in parts:
+                # Skip common non-name patterns
+                if (part.lower() not in ['resume', 'cv', 'updated', 'final', 'new'] and 
+                    not part.isdigit() and 
+                    not part.endswith('y') and  # Skip "11y" type patterns
+                    len(part) > 1):
+                    candidates.append(part.lower())  # Keep lowercase for matching
+        
+        # Pattern 2: FirstName LastName (space separated)
+        elif ' ' in name_part:
+            parts = name_part.split(' ')
+            for part in parts:
+                if (part.lower() not in ['resume', 'cv', 'updated', 'final', 'new'] and 
+                    not part.isdigit() and len(part) > 1):
+                    candidates.append(part.lower())
+        
+        # Pattern 3: CamelCase or single name
+        else:
+            # Remove common keywords first
+            clean_name = name_part.lower()
+            for keyword in ['resume', 'cv', 'resumeee']:  # Note: "resumeee" pattern
+                clean_name = clean_name.replace(keyword, '')
+            clean_name = clean_name.strip('_-')
+            
+            if clean_name and len(clean_name) > 1 and not clean_name.isdigit():
+                candidates.append(clean_name)
+        
+        logger.info(f"Extracted candidates: {candidates}")
+        return candidates
+    
+    def _update_context_from_response(self, response: str, question: str) -> None:
+        """Update context tracking based on AI response and question."""
+        response_lower = response.lower()
+        question_lower = question.lower()
+        
+        logger.info(f"Updating context from response: {response[:100]}...")
+        logger.info(f"Question was: {question}")
+        
+        # First try to identify from the response text
+        for resume in self.resumes_data:
+            filename = resume['filename']
+            candidate_names = self._extract_candidate_names(filename)
+            
+            # Check if any candidate name appears in the response
+            for name in candidate_names:
+                if name in response_lower:
+                    logger.info(f"Found candidate {name} in response, setting as last mentioned")
+                    self._last_mentioned_resume = {
+                        'filename': filename,
+                        'candidate_name': name.capitalize(),
+                        'resume_data': resume
+                    }
+                    return
+        
+        # If no direct name match, analyze the response pattern
+        # Look for patterns like "[Name] has the most experience" or "Based on... [Name] boasts"
+        import re
+        
+        # Pattern: "[Name] has" or "[Name] boasts" - extract the name before these verbs
+        name_patterns = [
+            r'([A-Za-z]+(?:\s+[A-Za-z]+)?(?:\s+[A-Za-z]+)?)\s+(?:has|boasts|shows|demonstrates)\s+(?:the\s+)?(?:most|highest|best)',
+            r'([A-Za-z]+(?:\s+[A-Za-z]+)?(?:\s+[A-Za-z]+)?)\s+(?:is|appears|seems)\s+(?:the\s+)?(?:most|best)',
+            r'(?:Based on.*?)([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(?:has|boasts)'
+        ]
+        
+        for pattern in name_patterns:
+            matches = re.finditer(pattern, response, re.IGNORECASE)
+            for match in matches:
+                potential_name = match.group(1).strip().lower()
+                logger.info(f"Found potential name from pattern: {potential_name}")
+                
+                # Try to match this with our candidate names
+                for resume in self.resumes_data:
+                    candidate_names = self._extract_candidate_names(resume['filename'])
+                    for name in candidate_names:
+                        if name in potential_name or potential_name in name:
+                            logger.info(f"Matched pattern name {potential_name} with candidate {name}")
+                            self._last_mentioned_resume = {
+                                'filename': resume['filename'],
+                                'candidate_name': name.capitalize(),
+                                'resume_data': resume
+                            }
+                            return
+        
+        logger.info("No specific candidate identified from response")

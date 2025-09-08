@@ -235,6 +235,80 @@ def clear_session():
             'error': str(e)
         })
 
+@app.route('/download/<filename>')
+def download_file(filename):
+    """Download uploaded resume files."""
+    try:
+        # Check if user has active session
+        session_id = session.get('session_id')
+        if not session_id:
+            return jsonify({
+                'success': False,
+                'error': 'No active session. Please upload files first.'
+            }), 404
+        
+        # Security: Only allow downloading files from user's session
+        session_folder = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
+        
+        # Check if file exists in user's session folder
+        file_path = os.path.join(session_folder, filename)
+        if not os.path.exists(file_path) or not os.path.commonpath([session_folder, file_path]) == session_folder:
+            return jsonify({
+                'success': False,
+                'error': 'File not found or access denied.'
+            }), 404
+        
+        # Send file for download
+        from flask import send_file
+        return send_file(file_path, as_attachment=True, download_name=filename)
+        
+    except Exception as e:
+        logger.error(f"Error downloading file {filename}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error downloading file: {str(e)}'
+        }), 500
+
+@app.route('/files')
+def list_files():
+    """List uploaded files for the current session."""
+    try:
+        session_id = session.get('session_id')
+        if not session_id:
+            return jsonify({
+                'success': False,
+                'files': []
+            })
+        
+        session_folder = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
+        if not os.path.exists(session_folder):
+            return jsonify({
+                'success': True,
+                'files': []
+            })
+        
+        files = []
+        for filename in os.listdir(session_folder):
+            file_path = os.path.join(session_folder, filename)
+            if os.path.isfile(file_path):
+                files.append({
+                    'filename': filename,
+                    'download_url': f'/download/{filename}',
+                    'size': os.path.getsize(file_path)
+                })
+        
+        return jsonify({
+            'success': True,
+            'files': files
+        })
+        
+    except Exception as e:
+        logger.error(f"Error listing files: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 @app.route('/health')
 def health_check():
     """Health check endpoint."""
