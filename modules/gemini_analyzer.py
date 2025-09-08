@@ -1,6 +1,5 @@
 from typing import List, Dict, Any
 import json
-import pandas as pd
 from langchain_google_genai import GoogleGenerativeAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
